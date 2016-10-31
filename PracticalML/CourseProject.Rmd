@@ -1,0 +1,141 @@
+---
+title: "Course Project"
+author: "Weslley Moura"
+date: "Sunday, October 30, 2016"
+output: html_document
+---
+
+## Resume
+
+**Human Activity Recognition**
+
+Human Activity Recognition - HAR - has emerged as a key research area in the last years and is gaining increasing attention by the pervasive computing research community (see picture below, that illustrates the increasing number of publications in HAR with wearable accelerometers), especially for the development of context-aware systems. There are many potential applications for HAR, like: elderly monitoring, life log systems for monitoring energy expenditure and for supporting weight-loss programs, and digital assistants for weight lifting exercises.
+
+[Source: http://groupware.les.inf.puc-rio.br/](Source: http://groupware.les.inf.puc-rio.br/)
+
+**This project**
+In this project we are going to identify the quality of barbell bicep curls by using data from belt, forearm, arm, and dumbbell monitors.
+
+## Libraries
+```{r}
+library(caret)
+library(caretEnsemble)
+library(rpart)
+library (randomForest)
+library(fastAdaboost)
+```
+
+## Reproducible code
+```{r}
+set.seed(3007)
+```
+
+## Loading datasets
+```{r}
+setwd("C://MeusArquivos//datasciencecoursera//PracticalML")
+dataset.train.all<-read.table("./pml-training.csv", header=TRUE, sep=",")
+dataset.test<-read.table("./pml-testing.csv",header=TRUE, sep=",")
+```
+
+## Feature selection
+Source: Idea extrated from https://rpubs.com/kdalve/pmachlearn
+
+Training dataset
+```{r}
+trainingaccel<-grepl("^accel",names(dataset.train.all))
+trainingtotal<-grepl("^total",names(dataset.train.all))
+roll<-grepl("^roll",names(dataset.train.all))
+pitch<-grepl("^pitch",names(dataset.train.all))
+yaw<-grepl("^yaw",names(dataset.train.all))
+magnet<-grepl("^magnet",names(dataset.train.all))
+gyro<-grepl("^gyro",names(dataset.train.all))
+acceldata<-dataset.train.all[ ,trainingaccel]
+rolldata<-dataset.train.all[ ,roll]
+pitchdata<-dataset.train.all[ ,pitch]
+yawdata<-dataset.train.all[,yaw]
+magnetdata<-dataset.train.all[,magnet]
+gyrodata<-dataset.train.all[,gyro]
+totaldata<-dataset.train.all[,trainingtotal]
+dataset.train.all<-cbind(acceldata,rolldata,pitchdata,yawdata,magnetdata,gyrodata,totaldata,dataset.train.all[ ,160])
+colnames(dataset.train.all)[53]<-'target'
+```
+
+Testing dataset
+```{r}
+testingaccel<-grepl("^accel",names(dataset.test))
+testingtotal<-grepl("^total",names(dataset.test))
+troll<-grepl("^roll",names(dataset.test))
+tpitch<-grepl("^pitch",names(dataset.test))
+tyaw<-grepl("^yaw",names(dataset.test))
+tmagnet<-grepl("^magnet",names(dataset.test))
+tgyro<-grepl("^gyro",names(dataset.test))
+tacceldata<-dataset.test[ ,testingaccel]
+trolldata<-dataset.test[ ,troll]
+tpitchdata<-dataset.test[,tpitch]
+tyawdata<-dataset.test[,tyaw]
+tmagnetdata<-dataset.test[,tmagnet]
+tgyrodata<-dataset.test[,tgyro]
+ttotaldata<-dataset.test[,testingtotal]
+dataset.test<-cbind(tacceldata,trolldata,tpitchdata,tyawdata,tmagnetdata,tgyrodata,ttotaldata,dataset.test[ ,160])
+colnames(dataset.test)[53]<-'id'
+```
+
+## Splittig trainig dataset
+```{r}
+trainIndex <- createDataPartition(dataset.train.all$target, p=0.80, list=FALSE)
+dataset.train <- dataset.train.all[ trainIndex,]
+dataset.validation <- dataset.train.all[-trainIndex,]
+```
+
+## Model selection
+
+In the train control I am using a k-fold cross validation.
+
+```{r}
+# Train control
+trainControl <- trainControl(method="cv", number=10, classProbs=TRUE, savePredictions=TRUE, index=createFolds(dataset.train$target))
+
+# Algorithms
+algorithmList <- c('rpart', 'rf')
+
+# Create models
+models <- caretList(target~., data=dataset.train, trControl=trainControl, methodList=algorithmList)
+
+# Ckeck results
+results <- resamples(models)
+```
+
+## Comparing results
+```{r}
+# Compare results for each model
+summary(results)
+
+# Using a box plot to compare results
+scales <- list(x=list(relation="free"), y=list(relation="free"))
+bwplot(results, scales=scales)
+```
+
+## Baseline model
+
+The best model was selected as the baseline.
+```{r}
+fit.rf <- train(target~., data=dataset.train, method="rf", trControl=trainControl)
+```
+
+## Making predictions on validation dataset 
+```{r}
+predictions = predict(fit.rf,dataset.validation)
+confusionMatrix(dataset.validation$target,predictions)
+```
+
+## Making predictions on test dataset 
+```{r}
+predictionsTest = predict(fit.rf,dataset.test)
+```
+
+## Showing predictions 
+```{r}
+finalResults = cbind(id = dataset.test$id, target = predictionsTest)
+print (finalResults)
+```
+
